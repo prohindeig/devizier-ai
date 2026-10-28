@@ -1,0 +1,142 @@
+// ─────────────────────────────────────────────────────────────
+// Schema SQLite — DOAR pentru dezvoltare 100% locală, fără Supabase.
+// În producție (Vercel) se folosește schema.prisma (PostgreSQL/Supabase).
+//
+// Utilizare locală:
+//   npx prisma generate --schema prisma/schema.sqlite.prisma
+//   npx prisma db push --schema prisma/schema.sqlite.prisma
+//   (DATABASE_URL în .env = "file:../db/custom.db")
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  ownerId         String   @default("")
+  name            String
+  locality        String   @default("")
+  type            String   @default("casa_noua")
+  builtArea       Float    @default(100)
+  usefulArea      Float    @default(0)
+  floors          Int      @default(1)
+  roomHeight      Float    @default(2.7)
+  roofType        String   @default("doua_ape")
+  roofSlope       Float    @default(30)
+  roofCovering    String   @default("tigla_metal")
+  foundationType  String   @default("banda")
+  extWallSystem   String   @default("beton_celular")
+  intWallSystem   String   @default("beton_celular_10")
+  ceilingSystem   String   @default("monolit")
+  finishLevel     String   @default("standard")
+  budget          Float    @default(0)
+  currency        String   @default("MDL")
+  exteriorEnabled Boolean  @default(false)
+  exteriorArea    Float    @default(0)
+  exteriorFence   Float    @default(0)
+  exteriorGate    Int      @default(0)
+  options         String   @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  rooms           Room[]
+
+  @@index([updatedAt])
+  @@index([ownerId])
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order       Int      @default(0)
+  name        String
+  type        String   @default("camera")
+  floorIndex  Int      @default(0)
+  length      Float    @default(4)
+  width       Float    @default(3.5)
+  height      Float?
+  doorCount   Int      @default(1)
+  doorWidth   Float    @default(0.9)
+  doorHeight  Float    @default(2.05)
+  windowCount Int      @default(0)
+  windowWidth Float    @default(1.4)
+  windowHeight Float   @default(1.5)
+  floorType   String   @default("laminat")
+  wallFinish  String   @default("tencuiala_vopsea")
+  ceilingType String   @default("vopsea")
+  config      String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model Material {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  category     String
+  manufacturer String   @default("")
+  spec         String   @default("")
+  unit         String
+  packageQty   Float    @default(1)
+  packageLabel String   @default("")
+  price        Float    @default(0)
+  priceCurrency String  @default("MDL")
+  supplier     String   @default("")
+  locality     String   @default("")
+  source       String   @default("indicativ")
+  priceDate    String   @default("")
+  link         String   @default("")
+  isPrimary    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([code])
+  @@index([category])
+}
+
+model LaborRate {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  unit      String
+  price     Float    @default(0)
+  source    String   @default("indicativ")
+  priceDate String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+model Backup {
+  id        String   @id @default(cuid())
+  label     String
+  kind      String   @default("auto")
+  hash      String   @default("")
+  sizeBytes Int      @default(0)
+  data      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String   @default("")
+  passHash  String
+  createdAt DateTime @default(now())
+}

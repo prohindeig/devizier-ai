@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// DEVIZIER AI — Schema de date (PostgreSQL / Supabase)
+// - DATABASE_URL = conexiune pooler (Supabase Transaction pooler, port 6543,
+//   parametru ?pgbouncer=true) — folosită de aplicație pe Vercel
+// - DIRECT_URL   = conexiune directă (port 5432) — folosită doar de CLI
+//   (prisma db push / migrate)
+// Pentru dezvoltare 100% locală fără Supabase folosește
+// prisma/schema.sqlite.prisma (vezi README-DEPLOY.md).
+// ─────────────────────────────────────────────────────────────
+
+model Project {
+  id              String   @id @default(cuid())
+  ownerId         String   @default("") // id utilizator; "" = fără cont (dispozitiv local/partajat)
+  name            String
+  locality        String   @default("")
+  // casa_noua | extindere | renovare | finisare
+  type            String   @default("casa_noua")
+  builtArea       Float    @default(100) // suprafața construită (amprenta), m²
+  usefulArea      Float    @default(0)   // suprafața utilă, m²
+  floors          Int      @default(1)
+  roomHeight      Float    @default(2.7)
+  // doua_ape | patru_ape | plan
+  roofType        String   @default("doua_ape")
+  roofSlope       Float    @default(30) // grade
+  // tigla_metal | carton_ondulat | tabla_seam | tigla_ceramica
+  roofCovering    String   @default("tigla_metal")
+  // banda | placa | piloni
+  foundationType  String   @default("banda")
+  // beton_celular | caramida | caramida_izolatie | cadru_metalic | lemn
+  extWallSystem   String   @default("beton_celular")
+  // beton_celular_10 | caramida | gips_carton
+  intWallSystem   String   @default("beton_celular_10")
+  ceilingSystem   String   @default("monolit") // monolit | panouri
+  // economic | standard | premium
+  finishLevel     String   @default("standard")
+  budget          Float    @default(0)
+  currency        String   @default("MDL") // MDL | EUR | USD | RON
+  exteriorEnabled Boolean  @default(false)
+  exteriorArea    Float    @default(0) // pavaj/trotuare, m²
+  exteriorFence   Float    @default(0) // gard, m
+  exteriorGate    Int      @default(0) // porți, buc
+  options         String   @default("{}") // JSON: transport, utilaj, deseuri, imprevizite %, extDoors, floorHeating, boiler...
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  rooms           Room[]
+
+  @@index([updatedAt])
+  @@index([ownerId])
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order       Int      @default(0)
+  name        String
+  // dormitor | living | bucatarie | baie | hol | birou | copil | camera_tehnica | garaj | balcon | camera
+  type        String   @default("camera")
+  floorIndex  Int      @default(0)
+  length      Float    @default(4)
+  width       Float    @default(3.5)
+  height      Float?   // null → folosește project.roomHeight
+  doorCount   Int      @default(1)
+  doorWidth   Float    @default(0.9)
+  doorHeight  Float    @default(2.05)
+  windowCount Int      @default(0)
+  windowWidth Float    @default(1.4)
+  windowHeight Float   @default(1.5)
+  // laminat | parchet | gresie | beton
+  floorType   String   @default("laminat")
+  // tencuiala_vopsea | gips_carton | faianta
+  wallFinish  String   @default("tencuiala_vopsea")
+  // vopsea | gips_carton | extensibil
+  ceilingType String   @default("vopsea")
+  // JSON RoomConfig: puncte electrice, circuite dedicate, obiecte sanitare,
+  // radiatoare — gol ({} sau câmpuri omise) = norme automat după tipul camerei
+  config      String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Baza de date de prețuri. Mai multe rânduri cu același „code" =
+// oferte de la furnizori diferiți (comparare). Motorul de calcul
+// folosește rândul marcat isPrimary (sau primul, determinist).
+model Material {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  category     String
+  manufacturer String   @default("")
+  spec         String   @default("")
+  unit         String
+  packageQty   Float    @default(1)
+  packageLabel String   @default("")
+  price        Float    @default(0) // preț în MDL (moneda de bază)
+  priceCurrency String  @default("MDL")
+  supplier     String   @default("")
+  locality     String   @default("")
+  // indicativ | manual | furnizor
+  source       String   @default("indicativ")
+  priceDate    String   @default("")
+  link         String   @default("")
+  isPrimary    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([code])
+  @@index([category])
+}
+
+model LaborRate {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  unit      String
+  price     Float    @default(0) // MDL / unitate
+  source    String   @default("indicativ")
+  priceDate String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Setări globale: cursuri valutare, rezervă implicită etc.
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+// Versiuni (backup-uri) ale bazei de date — se creează automat ÎNAINTE de
+// orice modificare, pentru revenire la versiunea precedentă.
+model Backup {
+  id        String   @id @default(cuid())
+  label     String                     // ex. „înainte de modificare: Casă Demo"
+  kind      String   @default("auto")  // auto | manual | import | restore
+  hash      String   @default("")      // amprentă conținut — evită duplicatele
+  sizeBytes Int      @default(0)
+  data      String                     // JSON complet: projects, rooms, materials, labor, settings
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Utilizatori — cont local (email + parolă). Pregătit pentru migrare
+// Supabase Auth: structura coincide cu auth.users (id/email).
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String   @default("")
+  passHash  String
+  createdAt DateTime @default(now())
+}
