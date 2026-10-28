@@ -176,10 +176,20 @@ export function computeEstimate(input: EngineInput): EstimateResult {
   const totalFloorArea = roomGeos.reduce((s, g) => s + g.floorArea, 0)
   const totalNetWallArea = roomGeos.reduce((s, g) => s + g.netWallArea, 0)
   const totalCeilingArea = roomGeos.reduce((s, g) => s + g.ceilingArea, 0)
-  const windowsArea = rooms.reduce((s, r) => s + r.windowCount * r.windowWidth * r.windowHeight, 0)
-  const windowsCount = rooms.reduce((s, r) => s + r.windowCount, 0)
-  const doorsTotal = rooms.reduce((s, r) => s + r.doorCount, 0)
+
+  // Geamuri și uși: număr manual din formular (0 = automat din camere).
+  // La suprascriere, aria per geam se deduce din media camerelor definite.
+  const roomsWinCount = rooms.reduce((s, r) => s + r.windowCount, 0)
+  const roomsWinArea = rooms.reduce((s, r) => s + r.windowCount * r.windowWidth * r.windowHeight, 0)
+  const avgWinArea = roomsWinCount > 0 ? roomsWinArea / roomsWinCount : 1.4 * 1.5
+  const avgWinWidth = roomsWinCount > 0 ? rooms.reduce((s, r) => s + r.windowCount * r.windowWidth, 0) / roomsWinCount : 1.4
+  const windowsCount = project.windowsCount > 0 ? project.windowsCount : roomsWinCount
+  const windowsArea = project.windowsCount > 0 ? windowsCount * avgWinArea : roomsWinArea
+  const winSourceNote = project.windowsCount > 0
+    ? `${windowsCount} ferestre (număr introdus manual) × aria medie ${fmtRo(avgWinArea)} m²`
+    : `${windowsCount} ferestre × dimensiunile din camere`
   const extDoors = Math.max(options.extDoors ?? 1, 0)
+  const doorsTotal = project.doorsCount > 0 ? project.doorsCount : rooms.reduce((s, r) => s + r.doorCount, 0)
   const intDoors = Math.max(doorsTotal - extDoors, rooms.length > 0 ? 1 : 0)
   const extDoorsArea = extDoors * 1.0 * 2.05
   const openingsFacade = windowsArea + extDoorsArea
@@ -187,6 +197,18 @@ export function computeEstimate(input: EngineInput): EstimateResult {
   const usefulArea = project.usefulArea > 0 ? project.usefulArea : builtArea * floors * 0.85
 
   const wallHTotal = roomH * floors
+
+  // ── Gradul de armare (metal) — grilă standard / consolidată / profile +
+  //    override manual kg/m³. Se aplică la toată armătura din beton.
+  const metalMult = project.metalSystem === 'grila_consolidata' ? 1.3 : project.metalSystem === 'profil_otel' ? 1.15 : 1
+  const armNorm = (base: number) => (project.metalKgM3 > 0 ? project.metalKgM3 : base * metalMult)
+  const armNote = project.metalKgM3 > 0
+    ? `armare manuală ${fmtRo(project.metalKgM3, 1)} kg/m³ beton`
+    : project.metalSystem === 'grila_consolidata'
+      ? 'armare consolidată — zonă seismică (+30%)'
+      : project.metalSystem === 'profil_otel'
+        ? 'profile de oțel — structură metalică (+15%)'
+        : 'grilă de armare standard'
 
   // ── Constructori de etape ─────────────────────────────────
   const builders = new Map<string, StageBuilder>()
@@ -232,8 +254,8 @@ export function computeEstimate(input: EngineInput): EstimateResult {
       const foundLen = extPerim + interiorFound
       const betonVol = foundLen * NORMS.latimeBanda * NORMS.inaltimeBanda
       b.add(betonCode, betonVol)
-      const armKg = betonVol * NORMS.armaturaFundaBanda
-      b.add('armatura_d12', armKg, `normă ${NORMS.armaturaFundaBanda} kg/m³ beton`)
+      const armKg = betonVol * armNorm(NORMS.armaturaFundaBanda)
+      b.add('armatura_d12', armKg, `normă ${fmtRo(armNorm(NORMS.armaturaFundaBanda), 1)} kg/m³ beton — ${armNote}`)
       b.add('sarma_legat', armKg * NORMS.sarmaLegat, '1,5% din masa armăturii')
       b.add('distantiere', foundLen * NORMS.distantiereBanda, '2,5 buc/m fundație')
       const cofrajArea = foundLen * NORMS.inaltimeBanda * 2
@@ -253,8 +275,8 @@ export function computeEstimate(input: EngineInput): EstimateResult {
     } else if (project.foundationType === 'placa') {
       const betonVol = builtArea * NORMS.grosimePlaca
       b.add(betonCode, betonVol)
-      const armKg = betonVol * NORMS.armaturaPlaca
-      b.add('armatura_d10', armKg, `normă ${NORMS.armaturaPlaca} kg/m³ (dublu rețea)`)
+      const armKg = betonVol * armNorm(NORMS.armaturaPlaca)
+      b.add('armatura_d10', armKg, `normă ${fmtRo(armNorm(NORMS.armaturaPlaca), 1)} kg/m³ (dublu rețea) — ${armNote}`)
       b.add('sarma_legat', armKg * NORMS.sarmaLegat)
       b.add('distantiere', builtArea * NORMS.distantierePlaca, '4 buc/m²')
       const cofrajArea = extPerim * NORMS.grosimePlaca
@@ -274,8 +296,8 @@ export function computeEstimate(input: EngineInput): EstimateResult {
       const betonGrinzi = extPerim * 0.3 * 0.4
       const betonVol = betonPiloni + betonGrinzi
       b.add(betonCode, betonVol)
-      const armKg = betonVol * NORMS.armaturaFundaBanda
-      b.add('armatura_d12', armKg, `normă ${NORMS.armaturaFundaBanda} kg/m³`)
+      const armKg = betonVol * armNorm(NORMS.armaturaFundaBanda)
+      b.add('armatura_d12', armKg, `normă ${fmtRo(armNorm(NORMS.armaturaFundaBanda), 1)} kg/m³ — ${armNote}`)
       b.add('sarma_legat', armKg * NORMS.sarmaLegat)
       b.add('distantiere', extPerim * NORMS.distantiereBanda)
       const cofrajArea = extPerim * 0.4 * 2
@@ -310,8 +332,8 @@ export function computeEstimate(input: EngineInput): EstimateResult {
       const stalpiVol = nrStalpi * 0.25 * 0.25 * roomH * floors
       const betonVol = beltVol + stalpiVol
       b.add('beton_c20_25', betonVol, `centuri ${nrNivele} nivele × ${fmtRo(beltLen)} m + ${nrStalpi} stâlpi 25×25`)
-      const armKg = (beltVol * NORMS.armaturaPlanseu + stalpiVol * NORMS.armaturaStalpi)
-      b.add('armatura_d12', armKg, 'centuri ~85 kg/m³, stâlpi ~110 kg/m³')
+      const armKg = (beltVol * armNorm(NORMS.armaturaPlanseu) + stalpiVol * armNorm(NORMS.armaturaStalpi))
+      b.add('armatura_d12', armKg, `${armNote} — centuri ~${fmtRo(armNorm(NORMS.armaturaPlanseu), 1)} kg/m³, stâlpi ~${fmtRo(armNorm(NORMS.armaturaStalpi), 1)} kg/m³`)
       b.add('sarma_legat', armKg * NORMS.sarmaLegat)
       b.add('distantiere', beltLen * nrNivele * 2)
       const cofrajArea = beltLen * 0.25 * 2 * nrNivele + nrStalpi * 0.25 * 4 * roomH * floors
@@ -322,12 +344,12 @@ export function computeEstimate(input: EngineInput): EstimateResult {
         if (slabArea > 0) {
           const slabBeton = slabArea * 0.16
           b.add('beton_c20_25', slabBeton, `planșee intermediare ${fmtRo(slabArea)} m² × 0,16 m`)
-          b.add('armatura_d10', slabArea * 0.16 * NORMS.armaturaPlanseu)
-          b.add('sarma_legat', slabArea * 0.16 * NORMS.armaturaPlanseu * NORMS.sarmaLegat)
+          b.add('armatura_d10', slabArea * 0.16 * armNorm(NORMS.armaturaPlanseu))
+          b.add('sarma_legat', slabArea * 0.16 * armNorm(NORMS.armaturaPlanseu) * NORMS.sarmaLegat)
           b.add('scanduri_cofraj', slabArea * 1.05, 'cofraj planșeu (rezervă 5%)')
           b.add('distantiere', slabArea * NORMS.distantierePlaca)
           b.addLabor('turnare_beton', slabBeton)
-          b.addLabor('armare', slabArea * 0.16 * NORMS.armaturaPlanseu / 1000)
+          b.addLabor('armare', slabArea * 0.16 * armNorm(NORMS.armaturaPlanseu) / 1000)
           b.addLabor('cofraj', slabArea * 1.05)
         }
       }
@@ -440,8 +462,8 @@ export function computeEstimate(input: EngineInput): EstimateResult {
   // ─────────── ETAPA 6 — TÂMPLĂRIE ─────────────────────────
   {
     const b = B('tamplarie')
-    b.add('fereastra_pvc', windowsArea, `${windowsCount} ferestre × dimensiunile din camere`)
-    b.add('glaf', rooms.reduce((s, r) => s + r.windowCount * r.windowWidth, 0) * 1.1, 'lungime ferestre + 10%')
+    b.add('fereastra_pvc', windowsArea, winSourceNote)
+    b.add('glaf', windowsCount * avgWinWidth * 1.1, 'lungime ferestre + 10%')
     if (extDoors > 0) b.add('usa_ext', extDoors)
     if (intDoors > 0) {
       b.add('usa_int', intDoors)
@@ -454,7 +476,11 @@ export function computeEstimate(input: EngineInput): EstimateResult {
     b.addLabor('montaj_ferestre', windowsArea)
     b.addLabor('montaj_usa_ext', extDoors)
     b.addLabor('montaj_usa_int', intDoors)
-    if (rooms.length > 0) b.assumptions.push('Ferestrele și ușile se dimensionează din configuratorul camerelor (număr + dimensiuni goluri)')
+    if (project.windowsCount > 0 || project.doorsCount > 0) {
+      b.assumptions.push(`Goluri de tâmplărie: ${project.windowsCount > 0 ? `${windowsCount} ferestre (manual)` : 'ferestre din camere'}, ${project.doorsCount > 0 ? `${doorsTotal} uși total (manual)` : `${extDoors} uși exterioare + uși interioare din camere`}`)
+    } else if (rooms.length > 0) {
+      b.assumptions.push('Ferestrele și ușile se dimensionează din configuratorul camerelor (număr + dimensiuni goluri)')
+    }
   }
 
   // ─────────── ETAPA 7 — INSTALAȚII ELECTRICE ──────────────

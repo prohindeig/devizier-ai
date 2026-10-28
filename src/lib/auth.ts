@@ -60,6 +60,10 @@ export interface SessionUser {
   id: string
   email: string
   name: string
+  firstName: string
+  lastName: string
+  phone: string
+  emailVerified: boolean
 }
 
 /** Citeste utilizatorul din cookie-ul de sesiune (server). */
@@ -68,8 +72,20 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const store = await cookies()
     const userId = verifySessionToken(store.get(COOKIE)?.value)
     if (!userId) return null
-    const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } })
-    return user
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, firstName: true, lastName: true, phone: true, emailVerifiedAt: true },
+    })
+    if (!user) return null
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      emailVerified: Boolean(user.emailVerifiedAt),
+    }
   } catch {
     return null
   }

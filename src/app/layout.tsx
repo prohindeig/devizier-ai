@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { ServiceWorkerRegistration, PwaUpdatePrompt } from "@/components/devizier/sw-register";
 
 const geistSans = Geist({
@@ -55,7 +55,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
-        <Toaster />
+        <Toaster position="top-center" richColors closeButton />
         <ServiceWorkerRegistration />
         <PwaUpdatePrompt />
       </body>

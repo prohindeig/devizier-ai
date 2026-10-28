@@ -11,6 +11,7 @@ export type FoundationType = 'banda' | 'placa' | 'piloni'
 export type ExtWallSystem = 'beton_celular' | 'caramida' | 'caramida_izolatie' | 'cadru_metalic' | 'lemn'
 export type IntWallSystem = 'beton_celular_10' | 'caramida' | 'gips_carton'
 export type FinishLevel = 'economic' | 'standard' | 'premium'
+export type MetalSystem = 'grila_standard' | 'grila_consolidata' | 'profil_otel'
 export type RoomType =
   | 'dormitor' | 'living' | 'bucatarie' | 'baie' | 'hol' | 'birou'
   | 'copil' | 'camera_tehnica' | 'garaj' | 'balcon' | 'camera'
@@ -41,6 +42,11 @@ export interface ProjectData {
   exteriorArea: number
   exteriorFence: number
   exteriorGate: number
+  landArea: number          // metraj: suprafața terenului, m²
+  windowsCount: number      // geamuri total (0 = automat din camere)
+  doorsCount: number        // uși interioare total (0 = automat din camere)
+  metalSystem: MetalSystem  // gradul de armare / tip structură metalică
+  metalKgM3: number         // armare manuală kg/m³ (0 = automat după metalSystem)
   options: ProjectOptions
 }
 
@@ -324,6 +330,12 @@ export const INT_WALL_LABELS: Record<IntWallSystem, string> = {
   beton_celular_10: 'Bloc beton celular 10 cm',
   caramida: 'Cărămidă plină 12 cm',
   gips_carton: 'Partiții gips-carton',
+}
+
+export const METAL_SYSTEM_LABELS: Record<MetalSystem, string> = {
+  grila_standard: 'Grilă de armare standard (85–110 kg/m³)',
+  grila_consolidata: 'Armare consolidată — zonă seismică (+30%)',
+  profil_otel: 'Profile de oțel — structură metalică',
 }
 
 // Puncte electrice implicite per tip de cameră (edibil prin norme)

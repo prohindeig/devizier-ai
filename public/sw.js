@@ -1,6 +1,6 @@
-/* Service Worker Devizier AI — instalare PWA + cache offline + update din aplicație */
-const CACHE = "devizier-v4";
-const APP_VERSION = "2.2.0";
+/* Service Worker Devizier AI — instalare PWA + cache offline + update automat + notificări push */
+const CACHE = "devizier-v6";
+const APP_VERSION = "3.1.0";
 const CORE = [
   "/",
   "/manifest.webmanifest",
@@ -29,7 +29,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Mesaje de la pagină: SKIP_WAITING = activează imediat versiunea nouă (update din aplicație)
+// Mesaje de la pagină: SKIP_WAITING = activează imediat versiunea nouă (update automat)
 self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
@@ -39,6 +39,50 @@ self.addEventListener("message", (event) => {
   if (event.data === "GET_VERSION") {
     event.source?.postMessage({ type: "VERSION", version: APP_VERSION });
   }
+});
+
+/* ── Notificări push ──────────────────────────────────────────────
+   Primită de server când apare o versiune nouă. Pe Android notificarea
+   apare în fereastră plutitoare (heads-up) chiar și cu aplicația
+   complet închisă; pe iPhone doar pentru aplicația instalată din Safari. */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Devizier AI", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Devizier AI — versiune nouă";
+  const body =
+    data.body ||
+    "O versiune nouă a aplicației este disponibilă și se instalează automat la următoarea deschidere.";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: data.icon || "/icons/icon-192.png",
+      badge: "/icons/icon-96.png",
+      tag: data.tag || "devizier-update",
+      renotify: true,
+      vibrate: [200, 100, 200, 100, 200],
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+/* Click pe notificare → deschide aplicația (sau aduce în față fereastra existentă) */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && "focus" in client) return client.focus();
+        }
+        return self.clients.openWindow(url);
+      })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

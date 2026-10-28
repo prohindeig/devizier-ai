@@ -26,6 +26,11 @@ CREATE TABLE "Project" (
     "exteriorArea" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "exteriorFence" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "exteriorGate" INTEGER NOT NULL DEFAULT 0,
+    "landArea" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "windowsCount" INTEGER NOT NULL DEFAULT 0,
+    "doorsCount" INTEGER NOT NULL DEFAULT 0,
+    "metalSystem" TEXT NOT NULL DEFAULT 'grila_standard',
+    "metalKgM3" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "options" TEXT NOT NULL DEFAULT '{}',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -128,10 +133,29 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL DEFAULT '',
+    "firstName" TEXT NOT NULL DEFAULT '',
+    "lastName" TEXT NOT NULL DEFAULT '',
+    "phone" TEXT NOT NULL DEFAULT '',
     "passHash" TEXT NOT NULL,
+    "emailVerifiedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "VerificationCode" (
+    "id" TEXT NOT NULL,
+    "target" TEXT NOT NULL,
+    "channel" TEXT NOT NULL DEFAULT 'email',
+    "purpose" TEXT NOT NULL,
+    "codeHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "consumedAt" TIMESTAMP(3),
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "VerificationCode_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -164,3 +188,7 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 -- AddForeignKey
 ALTER TABLE "Room" ADD CONSTRAINT "Room_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- CreateIndex VerificationCode
+CREATE INDEX "VerificationCode_target_purpose_idx" ON "VerificationCode"("target", "purpose");
+CREATE INDEX "VerificationCode_createdAt_idx" ON "VerificationCode"("createdAt");

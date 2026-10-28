@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
         exteriorArea: typeof body.exteriorArea === 'number' ? body.exteriorArea : 0,
         exteriorFence: typeof body.exteriorFence === 'number' ? body.exteriorFence : 0,
         exteriorGate: typeof body.exteriorGate === 'number' ? body.exteriorGate : 0,
+        landArea: typeof body.landArea === 'number' ? body.landArea : 0,
+        windowsCount: typeof body.windowsCount === 'number' ? Math.max(0, Math.round(body.windowsCount)) : 0,
+        doorsCount: typeof body.doorsCount === 'number' ? Math.max(0, Math.round(body.doorsCount)) : 0,
+        metalSystem: typeof body.metalSystem === 'string' ? body.metalSystem : 'grila_standard',
+        metalKgM3: typeof body.metalKgM3 === 'number' ? body.metalKgM3 : 0,
         options: JSON.stringify(body.options && typeof body.options === 'object' ? body.options : {}),
       },
     })

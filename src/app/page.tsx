@@ -10,11 +10,13 @@ import { PricesPanel } from '@/components/devizier/prices'
 import { LaborPanel } from '@/components/devizier/labor-panel'
 import { ExportPanel } from '@/components/devizier/export-panel'
 import { BackupPanel } from '@/components/devizier/backup-panel'
+import { VersionPanel } from '@/components/devizier/version-panel'
 import { SuppliersPanel } from '@/components/devizier/suppliers-panel'
 import { AiAssistant } from '@/components/devizier/ai-chat'
 import { InstallAppButton } from '@/components/devizier/install-app'
-import { AccountButton } from '@/components/devizier/account-button'
+import { AccountButton, type SessionUserLite } from '@/components/devizier/account-button'
 import { RatesDialog } from '@/components/devizier/rates-dialog'
+import { AuthScreen, BrandMark, type AuthedUser } from '@/components/devizier/auth-screen'
 import { Spinner, WarningList } from '@/components/devizier/common'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -29,24 +31,49 @@ import { Progress } from '@/components/ui/progress'
 import { fmtMoney, fmtNum } from '@/lib/format'
 import { APP_VERSION } from '@/lib/version'
 import { PROJECT_TYPE_LABELS, type ProjectData, type ProjectType } from '@/lib/calc/types'
-import { Calculator, Plus, Copy, Trash2, HardHat } from 'lucide-react'
+import {
+  Plus, Copy, Trash2, ClipboardList, DoorOpen, ReceiptText, FileDown, LayoutDashboard,
+  Tags, Truck, Hammer, DatabaseBackup, RefreshCw,
+} from 'lucide-react'
 import { toast } from 'sonner'
+
+const TAB_TRIGGER =
+  'flex items-center gap-1.5 rounded-md border border-transparent px-3 py-1.5 text-sm data-[state=active]:border-slate-200 data-[state=active]:bg-white data-[state=active]:shadow-sm'
 
 export default function Home() {
   const store = useApp()
-  const { loading, loaded, projects, currentId, project, rooms, materials, labor, currency, rates } = store
+  const { loading, loaded, projects, currentId, project, rooms, materials, currency, rates } = store
   const [newOpen, setNewOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [user, setUser] = useState<AuthedUser | null>(null)
+  const [authReady, setAuthReady] = useState(false)
   const [draft, setDraft] = useState({ name: '', locality: '', type: 'casa_noua', builtArea: 100, floors: 1, budget: 0, currency: 'MDL', withSampleRooms: true })
 
+  // Verificăm sesiunea ÎNAINTE de a încărca datele: fără cont → ecran de înregistrare
   useEffect(() => {
-    store.loadAll()
+    let cancelled = false
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return
+        const u = d?.user ?? null
+        setUser(u)
+        if (u) store.loadAll()
+      })
+      .catch(() => setUser(null))
+      .finally(() => !cancelled && setAuthReady(true))
+    return () => { cancelled = true }
   }, [])
 
   const estimate = useMemo(
-    () => computeCurrentEstimate({ project, rooms, materials, labor }),
-    [project, rooms, materials, labor]
+    () => computeCurrentEstimate({ project, rooms, materials, labor: store.labor }),
+    [project, rooms, materials, store.labor]
   )
+
+  const handleAuthed = async (u: AuthedUser) => {
+    setUser(u)
+    await store.loadAll()
+  }
 
   const createProject = async () => {
     if (!draft.name.trim()) {
@@ -63,13 +90,30 @@ export default function Home() {
     }
   }
 
+  if (!authReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <BrandMark className="mx-auto h-14 w-14 animate-pulse" />
+          <Spinner className="py-3" />
+          <p className="text-sm text-muted-foreground">Se încarcă Devizier AI...</p>
+        </div>
+      </main>
+    )
+  }
+
+  // ── POARTA DE AUTENTIFICARE: fără sesiune → ecranul de înregistrare ──
+  if (!user) {
+    return <AuthScreen onAuthed={handleAuthed} />
+  }
+
   if (loading || !loaded) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100">
         <div className="text-center">
-          <HardHat className="mx-auto mb-4 h-12 w-12 animate-bounce text-slate-800" />
-          <Spinner className="py-0" />
-          <p className="mt-2 text-sm text-muted-foreground">Se încarcă Devizier AI...</p>
+          <BrandMark className="mx-auto h-14 w-14 animate-pulse" />
+          <Spinner className="py-3" />
+          <p className="mt-2 text-sm text-muted-foreground">Se încarcă proiectele tale...</p>
         </div>
       </main>
     )
@@ -81,17 +125,16 @@ export default function Home() {
       <main className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
         <div className="w-full max-w-xl rounded-2xl border bg-white p-8 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900">
-              <Calculator className="h-6 w-6 text-orange-500" />
-            </div>
+            <BrandMark className="h-12 w-12" />
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Devizier AI</h1>
               <p className="text-sm text-muted-foreground">Calculator inteligent pentru construcții — Republica Moldova</p>
             </div>
           </div>
           <p className="mb-5 text-sm text-muted-foreground">
-            Creează primul proiect: introduceți suprafața, sistemul constructiv și camerele — aplicația calculează
-            automat materialele până la ultimul șurub, manopera și costul total.
+            Bun venit, {user.firstName || user.name || 'drag utilizator'}! Creează primul proiect: introdu suprafața,
+            sistemul constructiv și camerele — aplicația calculează automat materialele până la ultimul șurub,
+            manopera și costul total.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
@@ -134,16 +177,14 @@ export default function Home() {
     )
   }
 
-  // ── Aplicația principală (header cu acțiuni wrap pe mobil) ──
+  // ── Aplicația principală ───────────────────────────────────
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white pt-[max(0px,env(safe-area-inset-top))]">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-600">
-              <Calculator className="h-5 w-5 text-white" />
-            </div>
+            <BrandMark className="h-9 w-9 shadow-orange-900/40" />
             <div className="leading-tight">
               <p className="font-bold">Devizier AI</p>
               <p className="text-[11px] text-slate-400">Calculator construcții</p>
@@ -163,7 +204,7 @@ export default function Home() {
 
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <InstallAppButton />
-            <AccountButton />
+            <AccountButton user={user as SessionUserLite} onUserChanged={setUser} />
             <RatesDialog />
             <Button size="sm" variant="outline" className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700" onClick={() => setNewOpen(true)}>
               <Plus className="mr-1 h-4 w-4" /> Proiect nou
@@ -186,6 +227,7 @@ export default function Home() {
           <Badge variant="secondary">{PROJECT_TYPE_LABELS[project.type]}</Badge>
           <Badge variant="outline">{project.builtArea} m² construiți</Badge>
           <Badge variant="outline">{rooms.length} camere</Badge>
+          <Badge variant="outline">{project.windowsCount > 0 ? `${project.windowsCount} geamuri` : `${estimate?.geometry.windowsCount ?? 0} geamuri`}</Badge>
           <span className="ml-auto flex items-center gap-3">
             {estimate && estimate.missingPrices.length > 0 && (
               <span className="text-xs font-medium text-orange-600">{estimate.missingPrices.length} prețuri lipsă</span>
@@ -213,17 +255,24 @@ export default function Home() {
       {/* Conținut */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5">
         <Tabs defaultValue="proiect" className="space-y-4">
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-white p-1">
-            <TabsTrigger value="proiect">Proiect</TabsTrigger>
-            <TabsTrigger value="camere">Camere</TabsTrigger>
-            <TabsTrigger value="deviz">Deviz</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="preturi">Prețuri</TabsTrigger>
-            <TabsTrigger value="furnizori">Furnizori</TabsTrigger>
-            <TabsTrigger value="manopera">Manoperă</TabsTrigger>
-            <TabsTrigger value="export">Export</TabsTrigger>
-            <TabsTrigger value="backup">Backup</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto pb-0.5">
+            <TabsList className="flex h-auto w-max min-w-full items-center gap-1 rounded-xl bg-white p-1.5 shadow-sm">
+              <TabsTrigger value="proiect" className={TAB_TRIGGER}><ClipboardList className="h-4 w-4 text-slate-500" /> Proiect</TabsTrigger>
+              <TabsTrigger value="camere" className={TAB_TRIGGER}><DoorOpen className="h-4 w-4 text-slate-500" /> Camere</TabsTrigger>
+              <TabsTrigger value="deviz" className={TAB_TRIGGER}><ReceiptText className="h-4 w-4 text-slate-500" /> Deviz</TabsTrigger>
+              <TabsTrigger value="export" className={`${TAB_TRIGGER} text-orange-700 data-[state=active]:text-orange-700`}>
+                <FileDown className="h-4 w-4" /> Export PDF
+              </TabsTrigger>
+              <TabsTrigger value="dashboard" className={TAB_TRIGGER}><LayoutDashboard className="h-4 w-4 text-slate-500" /> Dashboard</TabsTrigger>
+              <TabsTrigger value="preturi" className={TAB_TRIGGER}><Tags className="h-4 w-4 text-slate-500" /> Prețuri</TabsTrigger>
+              <TabsTrigger value="furnizori" className={TAB_TRIGGER}><Truck className="h-4 w-4 text-slate-500" /> Furnizori</TabsTrigger>
+              <TabsTrigger value="manopera" className={TAB_TRIGGER}><Hammer className="h-4 w-4 text-slate-500" /> Manoperă</TabsTrigger>
+              <TabsTrigger value="backup" className={TAB_TRIGGER}><DatabaseBackup className="h-4 w-4 text-slate-500" /> Backup</TabsTrigger>
+              <TabsTrigger value="versiune" className={`${TAB_TRIGGER} text-emerald-700 data-[state=active]:text-emerald-700`}>
+                <RefreshCw className="h-4 w-4" /> Verifică versiune
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="proiect"><ProjectForm estimate={estimate} /></TabsContent>
           <TabsContent value="camere"><RoomsPanel /></TabsContent>
@@ -232,6 +281,7 @@ export default function Home() {
               <DevizPanel estimate={estimate} currency={currency} rates={rates} />
             ) : <Spinner />}
           </TabsContent>
+          <TabsContent value="export"><ExportPanel estimate={estimate} currentId={currentId} /></TabsContent>
           <TabsContent value="dashboard">
             {estimate ? (
               <DashboardPanel estimate={estimate} currency={currency} rates={rates} />
@@ -246,8 +296,8 @@ export default function Home() {
           <TabsContent value="manopera">
             <LaborPanel estimate={estimate} currency={currency} rates={rates} />
           </TabsContent>
-          <TabsContent value="export"><ExportPanel estimate={estimate} currentId={currentId} /></TabsContent>
           <TabsContent value="backup"><BackupPanel /></TabsContent>
+          <TabsContent value="versiune"><VersionPanel /></TabsContent>
         </Tabs>
       </main>
 

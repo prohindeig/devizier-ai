@@ -41,6 +41,11 @@ model Project {
   exteriorArea    Float    @default(0)
   exteriorFence   Float    @default(0)
   exteriorGate    Int      @default(0)
+  landArea        Float    @default(0)
+  windowsCount    Int      @default(0)
+  doorsCount      Int      @default(0)
+  metalSystem     String   @default("grila_standard")
+  metalKgM3       Float    @default(0)
   options         String   @default("{}")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -134,9 +139,28 @@ model Backup {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String   @default("")
-  passHash  String
-  createdAt DateTime @default(now())
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String    @default("")
+  firstName       String    @default("")
+  lastName        String    @default("")
+  phone           String    @default("")
+  passHash        String
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model VerificationCode {
+  id         String    @id @default(cuid())
+  target     String
+  channel    String    @default("email")
+  purpose    String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([target, purpose])
+  @@index([createdAt])
 }

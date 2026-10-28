@@ -53,6 +53,11 @@ export interface ProjectRow {
   exteriorArea: number
   exteriorFence: number
   exteriorGate: number
+  landArea: number
+  windowsCount: number
+  doorsCount: number
+  metalSystem: string
+  metalKgM3: number
   options: string
 }
 
@@ -69,17 +74,20 @@ export function toProjectData(row: ProjectRow): ProjectData {
 
 export function projectUpdateData(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {}
-  const strFields = ['name', 'locality', 'type', 'roofType', 'roofCovering', 'foundationType', 'extWallSystem', 'intWallSystem', 'ceilingSystem', 'finishLevel', 'currency']
+  const strFields = ['name', 'locality', 'type', 'roofType', 'roofCovering', 'foundationType', 'extWallSystem', 'intWallSystem', 'ceilingSystem', 'finishLevel', 'currency', 'metalSystem']
   for (const f of strFields) {
     if (typeof body[f] === 'string') data[f] = body[f]
   }
-  const numFields = ['builtArea', 'usefulArea', 'roofSlope', 'budget', 'exteriorArea', 'exteriorFence']
+  const numFields = ['builtArea', 'usefulArea', 'roofSlope', 'budget', 'exteriorArea', 'exteriorFence', 'landArea', 'metalKgM3']
   for (const f of numFields) {
     if (typeof body[f] === 'number' && isFinite(body[f] as number)) data[f] = body[f]
   }
   if (typeof body.floors === 'number') data.floors = Math.max(1, Math.round(body.floors))
   if (typeof body.roomHeight === 'number' && (body.roomHeight as number) > 0) data.roomHeight = body.roomHeight
   if (typeof body.exteriorGate === 'number') data.exteriorGate = Math.max(0, Math.round(body.exteriorGate))
+  for (const f of ['windowsCount', 'doorsCount']) {
+    if (typeof body[f] === 'number') data[f] = Math.max(0, Math.round(body[f] as number))
+  }
   if (typeof body.exteriorEnabled === 'boolean') data.exteriorEnabled = body.exteriorEnabled
   if (body.options && typeof body.options === 'object') {
     data.options = JSON.stringify(body.options)

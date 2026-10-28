@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/push/fanout",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

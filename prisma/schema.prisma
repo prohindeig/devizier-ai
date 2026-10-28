@@ -49,6 +49,12 @@ model Project {
   exteriorArea    Float    @default(0) // pavaj/trotuare, m²
   exteriorFence   Float    @default(0) // gard, m
   exteriorGate    Int      @default(0) // porți, buc
+  landArea        Float    @default(0) // metraj: suprafața terenului, m²
+  windowsCount    Int      @default(0) // geamuri total (0 = automat din camere)
+  doorsCount      Int      @default(0) // uși interioare total (0 = automat din camere)
+  // grila_standard | grila_consolidata | profil_otel | custom
+  metalSystem     String   @default("grila_standard")
+  metalKgM3       Float    @default(0) // armare manuală kg/m³ beton (0 = automat după metalSystem)
   options         String   @default("{}") // JSON: transport, utilaj, deseuri, imprevizite %, extDoors, floorHeating, boiler...
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -157,9 +163,48 @@ model Backup {
 // Utilizatori — cont local (email + parolă). Pregătit pentru migrare
 // Supabase Auth: structura coincide cu auth.users (id/email).
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String   @default("")
-  passHash  String
-  createdAt DateTime @default(now())
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String    @default("") // nume complet (compatibilitate)
+  firstName       String    @default("") // prenume
+  lastName        String    @default("") // nume de familie
+  phone           String    @default("")
+  passHash        String
+  emailVerifiedAt DateTime? // null = e-mail neverificat (contul cere cod de confirmare)
+  createdAt       DateTime  @default(now())
+}
+
+// Subscripții pentru notificări Web Push — notificare pe telefon când apare
+// o versiune nouă, chiar și cu aplicația închisă. Endpoint-ul este unic per
+// dispozitiv/browser; lastVersion evită notificările duplicate.
+model PushSubscription {
+  id          String   @id @default(cuid())
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userId      String   @default("")
+  userAgent   String   @default("")
+  lastVersion String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([lastVersion])
+}
+
+// Coduri de verificare („captcha” din interfață): confirmare e-mail la
+// înregistrare și resetare parolă pe e-mail/telefon. Codul se salvează
+// hash-uit (SHA-256), valabil 15 minute, maxim 6 încercări.
+model VerificationCode {
+  id         String    @id @default(cuid())
+  target     String    // e-mail (lowercase) sau număr de telefon normalizat
+  channel    String    @default("email") // email | sms
+  purpose    String    // verify_email | reset_password
+  codeHash   String    // SHA-256(code + salt)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([target, purpose])
+  @@index([createdAt])
 }

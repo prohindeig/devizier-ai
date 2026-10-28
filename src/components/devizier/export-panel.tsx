@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { exportPdf } from './pdf'
 import type { EstimateResult } from '@/lib/calc/types'
-import { FileDown, FileSpreadsheet, FileText, Info, Loader2 } from 'lucide-react'
+import { FileDown, FileSpreadsheet, FileText, Info, Loader2, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function ExportPanel({ estimate, currentId }: { estimate: EstimateResult | null; currentId: string | null }) {
@@ -26,7 +26,7 @@ export function ExportPanel({ estimate, currentId }: { estimate: EstimateResult 
     setPdfBusy(true)
     try {
       await exportPdf(estimate)
-      toast.success('PDF generat')
+      toast.success('PDF generat — se deschide fereastra de salvare')
     } catch (e) {
       console.error(e)
       toast.error('Eroare la generarea PDF. Încearcă din nou.')
@@ -37,17 +37,33 @@ export function ExportPanel({ estimate, currentId }: { estimate: EstimateResult 
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Card>
+      {/* Acțiunea principală: tot devizul în PDF */}
+      <Card className="border-orange-200 shadow-md shadow-orange-100/60">
         <CardHeader>
-          <CardTitle>Export și rapoarte</CardTitle>
-          <CardDescription>Devizul se exportă în PDF, Excel (cu formule de recalculare) sau CSV.</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-600 text-white">
+              <Printer className="h-4.5 w-4.5" />
+            </span>
+            Tot devizul, în PDF
+          </CardTitle>
+          <CardDescription>
+            Un singur click: PDF cu toate cele 11 etape, materialele cu cantități și prețuri, manopera,
+            costurile suplimentare, totalurile și ipotezele de calcul. Ideal de trimis antreprenorului sau băncii.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-56 space-y-1">
-              <p className="text-sm font-medium">Moneda exportului</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={doPdf}
+              disabled={!estimate || pdfBusy}
+              className="h-12 flex-1 bg-orange-600 px-6 text-base font-semibold hover:bg-orange-700 sm:flex-none"
+            >
+              {pdfBusy ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Se generează…</> : <><FileText className="mr-2 h-5 w-5" /> Descarcă devizul în PDF</>}
+            </Button>
+            <div className="w-44 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Moneda exportului</p>
               <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Moneda exportului"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MDL">MDL (bază)</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
@@ -56,20 +72,20 @@ export function ExportPanel({ estimate, currentId }: { estimate: EstimateResult 
                 </SelectContent>
               </Select>
             </div>
-            <p className="mt-6 text-xs text-muted-foreground">
-              Prețurile se convertesc cu cursul din setări. În Excel, cursul este o celulă editabilă — modific-o și totalurile se recalculează.
-            </p>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Prețurile se convertesc cu cursul din setări. PDF-ul se generează direct din aplicație — și offline, dacă e instalată.
+          </p>
+        </CardContent>
+      </Card>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <ExportCard
-              icon={<FileText className="h-6 w-6 text-slate-700" />}
-              title="PDF"
-              desc="Deviz complet cu date proiect, etape, totaluri și ipoteze de calcul."
-              action={pdfBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se generează...</> : <>Descarcă PDF</>}
-              onClick={doPdf}
-              disabled={!estimate || pdfBusy}
-            />
+      <Card>
+        <CardHeader>
+          <CardTitle>Alte formate</CardTitle>
+          <CardDescription>Pentru ajustări în foaie de calcul sau alte aplicații.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <ExportCard
               icon={<FileSpreadsheet className="h-6 w-6 text-emerald-700" />}
               title="Excel (XLSX)"
@@ -79,7 +95,7 @@ export function ExportPanel({ estimate, currentId }: { estimate: EstimateResult 
               disabled={!currentId}
             />
             <ExportCard
-              icon={<FileDown className="h-6 w-6 text-orange-600" />}
+              icon={<FileDown className="h-6 w-6 text-slate-700" />}
               title="CSV"
               desc="Format simplu pentru orice altă aplicație (foi de calcul, ERP)."
               action={<>Descarcă CSV</>}
@@ -116,7 +132,7 @@ function ExportCard({ icon, title, desc, action, onClick, disabled }: {
       <div className="mb-2">{icon}</div>
       <p className="font-semibold">{title}</p>
       <p className="mb-3 flex-1 text-xs text-muted-foreground">{desc}</p>
-      <Button onClick={onClick} disabled={disabled} className="bg-slate-900 hover:bg-slate-800">{action}</Button>
+      <Button onClick={onClick} disabled={disabled} variant="outline" className="w-full">{action}</Button>
     </div>
   )
 }

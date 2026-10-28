@@ -1,69 +1,63 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useApp } from '@/lib/store'
-import { CircleUserRound, LogOut, LogIn, UserPlus, ShieldCheck } from 'lucide-react'
+import { BadgeCheck, CircleUserRound, KeyRound, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface User {
+export interface SessionUserLite {
   id: string
   email: string
   name: string
+  firstName: string
+  lastName: string
+  phone: string
+  emailVerified: boolean
 }
 
-type Mode = 'login' | 'register'
-
-/** Buton de cont în header: sesiune locală (e-mail + parolă), proiecte protejate per utilizator. */
-export function AccountButton() {
+/**
+ * Meniul de cont din header (utilizator deja conectat):
+ * profil, schimbarea parolei și deconectarea.
+ * Înregistrarea/conectarea se face pe ecranul de start (AuthScreen).
+ */
+export function AccountButton({ user, onUserChanged }: { user: SessionUserLite; onUserChanged: (u: SessionUserLite | null) => void }) {
   const store = useApp()
-  const [user, setUser] = useState<User | null>(null)
-  const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<Mode>('login')
-  const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
+  const [passOpen, setPassOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPassword2, setNewPassword2] = useState('')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setUser(d?.user ?? null))
-      .catch(() => setUser(null))
-  }, [])
+  const displayName = user.firstName
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : user.name || user.email
 
-  const afterAuth = async (u: User) => {
-    setUser(u)
-    setOpen(false)
-    setPassword('')
-    await store.loadAll()
-  }
-
-  const submit = async () => {
-    if (!email.trim() || !password) {
-      toast.error('Completează e-mailul și parola')
-      return
-    }
-    if (mode === 'register' && password.length < 6) {
-      toast.error('Parola trebuie să aibă minim 6 caractere')
-      return
-    }
+  const changePassword = async () => {
+    if (!currentPassword || !newPassword) return toast.error('Completează ambele câmpuri')
+    if (newPassword.length < 6) return toast.error('Parola nouă trebuie să aibă minim 6 caractere')
+    if (newPassword !== newPassword2) return toast.error('Parolele noi nu coincid')
     setBusy(true)
     try {
-      const res = await fetch(`/api/auth/${mode}`, {
+      const res = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Autentificarea a eșuat')
-      toast.success(mode === 'login' ? 'Bine ai revenit!' : 'Cont creat — proiectele actuale ți-au fost asociate')
-      await afterAuth(data.user)
+      if (!res.ok) throw new Error(data.error ?? 'Schimbarea a eșuat')
+      toast.success('Parola a fost schimbată!')
+      setPassOpen(false)
+      setCurrentPassword('')
+      setNewPassword('')
+      setNewPassword2('')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Autentificarea a eșuat')
+      toast.error(e instanceof Error ? e.message : 'Schimbarea a eșuat')
     } finally {
       setBusy(false)
     }
@@ -73,106 +67,80 @@ export function AccountButton() {
     setBusy(true)
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
-      setUser(null)
       toast.success('Te-ai deconectat')
+      onUserChanged(null)
       await store.loadAll()
+      // la ieșire, revenim pe ecranul de conectare — pagina se re-randează prin user=null
+      window.location.reload()
     } finally {
       setBusy(false)
     }
   }
 
-  if (user) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <span
-          className="hidden max-w-40 items-center gap-1.5 truncate rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs text-slate-200 sm:inline-flex"
-          title={`${user.name || user.email} — proiectele tale sunt protejate`}
-        >
-          <CircleUserRound className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {user.name || user.email}
-        </span>
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-9 w-9 border-slate-700 bg-slate-800 hover:bg-slate-700"
-          onClick={logout}
-          disabled={busy}
-          aria-label="Deconectare"
-        >
-          <LogOut className="h-4 w-4 text-white" aria-hidden />
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <>
-      <Button
-        size="sm"
-        variant="outline"
-        className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
-        onClick={() => {
-          setMode('login')
-          setOpen(true)
-        }}
-        aria-label="Conectare cont"
-      >
-        <LogIn className="mr-1 h-4 w-4" aria-hidden />
-        <span className="hidden sm:inline">Cont</span>
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700"
+            aria-label="Meniul contului"
+          >
+            <CircleUserRound className="mr-1 h-4 w-4" aria-hidden />
+            <span className="hidden max-w-40 truncate sm:inline">{displayName}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuLabel>
+            <p className="truncate font-semibold">{displayName}</p>
+            <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {user.emailVerified && (
+                <Badge variant="secondary" className="gap-1 bg-emerald-50 text-emerald-700">
+                  <BadgeCheck className="h-3 w-3" /> E-mail verificat
+                </Badge>
+              )}
+              {user.phone && <Badge variant="outline" className="text-[10px]">{user.phone}</Badge>}
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setPassOpen(true)}>
+            <KeyRound className="mr-2 h-4 w-4" /> Schimbă parola
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-700" disabled={busy}>
+            <LogOut className="mr-2 h-4 w-4" /> Ieși din cont
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={passOpen} onOpenChange={setPassOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{mode === 'login' ? 'Conectare' : 'Creează cont'}</DialogTitle>
-            <DialogDescription className="flex items-start gap-1.5">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-              Contul îți protejează proiectele între utilizatorii aplicației. Toate dispozitivele conectate la
-              această instalație văd aceleași date sincronizate; fără cont, proiectele rămân „de dispozitiv" (comune).
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-orange-600" /> Schimbă parola</DialogTitle>
+            <DialogDescription>Introdu parola actuală și de două ori parola nouă.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Conectare sau înregistrare">
-              <Button variant={mode === 'login' ? 'default' : 'outline'} size="sm" className="bg-slate-900 hover:bg-slate-800" onClick={() => setMode('login')} aria-pressed={mode === 'login'}>
-                <LogIn className="mr-1.5 h-4 w-4" aria-hidden /> Conectare
-              </Button>
-              <Button variant={mode === 'register' ? 'default' : 'outline'} size="sm" className={mode === 'register' ? 'bg-slate-900 hover:bg-slate-800' : ''} onClick={() => setMode('register')} aria-pressed={mode === 'register'}>
-                <UserPlus className="mr-1.5 h-4 w-4" aria-hidden /> Cont nou
-              </Button>
-            </div>
-
-            {mode === 'register' && (
-              <div className="space-y-1.5">
-                <Label htmlFor="acc-name">Numele tău (opțional)</Label>
-                <Input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. Ion Păduraru" autoComplete="name" />
-              </div>
-            )}
             <div className="space-y-1.5">
-              <Label htmlFor="acc-email">E-mail</Label>
-              <Input id="acc-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nume@exemplu.md" autoComplete="email" />
+              <Label htmlFor="cp-current">Parola actuală</Label>
+              <Input id="cp-current" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="acc-pass">Parola</Label>
-              <Input
-                id="acc-pass"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submit()}
-                placeholder={mode === 'register' ? 'minim 6 caractere' : '••••••••'}
-                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              />
+              <Label htmlFor="cp-new">Parola nouă</Label>
+              <Input id="cp-new" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="minim 6 caractere" autoComplete="new-password" />
             </div>
-            {mode === 'register' && (
-              <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-muted-foreground">
-                La creare, proiectele existente „fără cont" îți sunt asociate automat.
-              </p>
-            )}
-            <Button className="w-full bg-slate-900 hover:bg-slate-800" onClick={submit} disabled={busy}>
-              {busy ? 'Se procesează…' : mode === 'login' ? 'Conectare' : 'Creează contul'}
-            </Button>
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-new2">Repetă parola nouă</Label>
+              <Input id="cp-new2" type="password" value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)} autoComplete="new-password" />
+            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPassOpen(false)}>Anulează</Button>
+            <Button className="bg-slate-900 hover:bg-slate-800" onClick={changePassword} disabled={busy}>
+              {busy ? 'Se salvează…' : 'Salvează parola nouă'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
